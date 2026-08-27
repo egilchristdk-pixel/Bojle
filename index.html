@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bøjle">
+<meta name="theme-color" content="#F6F8F9">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Bøjle</title>
+<style>
+  :root{
+    --bg:#F6F8F9; --card:#FFFFFF; --ink:#16282D; --muted:#64757B;
+    --line:#E3E9EB;
+    --on:#0E7C7B; --on-soft:#E2F1F0;
+    --off:#E08A00; --off-soft:#FBEFDD;
+    --danger:#C6373C; --danger-soft:#F9E5E5;
+    --radius:20px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:16px; line-height:1.4;}
+  body{padding:max(12px, env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    max-width:520px; margin:0 auto;}
+  h1{font-size:17px; font-weight:600; letter-spacing:.02em; text-transform:uppercase;
+    color:var(--muted); text-align:center; margin:8px 0 4px;}
+  .card{background:var(--card); border-radius:var(--radius); padding:16px;
+    margin-top:14px; box-shadow:0 1px 2px rgba(22,40,45,.06);}
+  .card h2{font-size:13px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--muted); margin:0 0 10px;}
+
+  /* --- Dial --- */
+  .dial-wrap{display:flex; flex-direction:column; align-items:center; margin-top:6px;}
+  .dial{position:relative; width:min(78vw,300px); height:min(78vw,300px);}
+  .dial svg{width:100%; height:100%; transform:rotate(-90deg);}
+  .dial .track{fill:none; stroke:var(--line); stroke-width:12;}
+  .dial .prog{fill:none; stroke:var(--on); stroke-width:12; stroke-linecap:round;
+    transition:stroke-dashoffset .5s linear, stroke .3s;}
+  .dial-center{position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; gap:2px;
+    border-radius:50%; cursor:pointer; user-select:none; -webkit-user-select:none;}
+  .dial-center:active{transform:scale(.98);}
+  .state-label{font-size:14px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;}
+  .state-label.on{color:var(--on);} .state-label.off{color:var(--off);}
+  .state-label.over{color:var(--danger);}
+  .big-time{font-size:52px; font-weight:200; font-variant-numeric:tabular-nums;
+    letter-spacing:-.01em; line-height:1.05;}
+  .sub-time{font-size:13px; color:var(--muted);}
+  .tap-hint{font-size:12px; color:var(--muted); margin-top:10px;}
+
+  .btn{display:block; width:100%; border:none; border-radius:14px; padding:15px;
+    font-size:16px; font-weight:600; font-family:inherit; cursor:pointer;}
+  .btn:active{opacity:.85;}
+  .btn.on{background:var(--on); color:#fff;}
+  .btn.off{background:var(--off); color:#fff;}
+  .btn.ghost{background:transparent; color:var(--muted); font-weight:500; padding:10px;}
+  .btn-row{display:flex; gap:10px;}
+  .btn-row .btn{flex:1;}
+
+  /* --- Stats --- */
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .stat{background:var(--bg); border-radius:12px; padding:10px 12px;}
+  .stat .v{font-size:22px; font-weight:500; font-variant-numeric:tabular-nums;}
+  .stat .l{font-size:12px; color:var(--muted);}
+  .stat.warn .v{color:var(--danger);}
+  .goalbar{height:8px; border-radius:4px; background:var(--line); margin-top:12px; overflow:hidden;}
+  .goalbar>div{height:100%; border-radius:4px; background:var(--on); width:0%;}
+  .goal-note{font-size:12px; color:var(--muted); margin-top:6px;}
+
+  /* --- History --- */
+  table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums;}
+  td,th{padding:7px 4px; text-align:left; font-size:14px; border-top:1px solid var(--line);}
+  th{border-top:none; font-size:12px; color:var(--muted); font-weight:600;}
+  td.num,th.num{text-align:right;}
+  .ok{color:var(--on); font-weight:600;} .miss{color:var(--danger); font-weight:600;}
+  .avg-line{font-size:14px; margin-top:10px; color:var(--muted);}
+  .avg-line b{color:var(--ink); font-variant-numeric:tabular-nums;}
+
+  /* --- Log --- */
+  .log-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .log-nav button{border:none; background:var(--bg); border-radius:10px; width:38px; height:34px;
+    font-size:16px; color:var(--ink); cursor:pointer;}
+  .log-nav .d{font-size:14px; font-weight:600;}
+  .ev{display:flex; align-items:center; gap:10px; padding:9px 2px; border-top:1px solid var(--line);}
+  .ev:first-of-type{border-top:none;}
+  .ev .tag{font-size:12px; font-weight:700; letter-spacing:.05em; border-radius:8px;
+    padding:4px 9px; min-width:42px; text-align:center;}
+  .ev .tag.on{background:var(--on-soft); color:var(--on);}
+  .ev .tag.off{background:var(--off-soft); color:var(--off);}
+  .ev .t{flex:1; font-variant-numeric:tabular-nums; font-size:16px;}
+  .ev .edit{border:none; background:none; color:var(--muted); font-size:14px; cursor:pointer; padding:6px;}
+  .editor{background:var(--bg); border-radius:12px; padding:12px; margin:8px 0;}
+  .editor label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  .editor input[type=datetime-local], .editor select{width:100%; font-size:16px; padding:9px;
+    border:1px solid var(--line); border-radius:10px; background:#fff; font-family:inherit; margin-bottom:10px;}
+  .editor .btn-row .btn{padding:11px; font-size:15px;}
+  .btn.save{background:var(--ink); color:#fff;}
+  .btn.del{background:var(--danger-soft); color:var(--danger);}
+  .empty{color:var(--muted); font-size:14px; padding:8px 0;}
+  .foot{text-align:center; color:var(--muted); font-size:12px; margin-top:20px;}
+  .storage-warn{background:var(--danger-soft); color:var(--danger); border-radius:12px;
+    padding:10px 12px; font-size:13px; margin-top:12px; display:none;}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+</style>
+</head>
+<body>
+
+<h1>Bøjle</h1>
+
+<div class="dial-wrap">
+  <div class="dial">
+    <svg viewBox="0 0 300 300">
+      <circle class="track" cx="150" cy="150" r="138"></circle>
+      <circle class="prog" id="ring" cx="150" cy="150" r="138"></circle>
+    </svg>
+    <div class="dial-center" id="dialTap" role="button" aria-label="Skift status">
+      <div class="state-label" id="stateLabel">–</div>
+      <div class="big-time" id="bigTime">–</div>
+      <div class="sub-time" id="subTime"></div>
+    </div>
+  </div>
+  <div class="tap-hint" id="tapHint"></div>
+</div>
+
+<div id="toggleArea"></div>
+<div class="storage-warn" id="storageWarn">
+  Data kan ikke gemmes permanent her (forhåndsvisning). På din telefon via hjemmeskærmen gemmes alt automatisk.
+</div>
+
+<div class="card">
+  <h2>I dag</h2>
+  <div class="stat-grid">
+    <div class="stat"><div class="v" id="stOn">–</div><div class="l">bøjle på</div></div>
+    <div class="stat"><div class="v" id="stLeft">–</div><div class="l">mangler til 22 t</div></div>
+    <div class="stat"><div class="v" id="stOffTime">–</div><div class="l">pause i alt</div></div>
+    <div class="stat" id="stOffCard"><div class="v" id="stOffCount">–</div><div class="l">pauser (maks. 4)</div></div>
+  </div>
+  <div class="goalbar"><div id="goalFill"></div></div>
+  <div class="goal-note" id="goalNote"></div>
+</div>
+
+<div class="card">
+  <h2>Historik</h2>
+  <table>
+    <thead><tr><th>Dag</th><th class="num">På</th><th class="num">Pauser</th><th class="num">22 t</th></tr></thead>
+    <tbody id="histBody"></tbody>
+  </table>
+  <div class="avg-line" id="avgLine"></div>
+</div>
+
+<div class="card">
+  <h2>Log</h2>
+  <div class="log-nav">
+    <button id="dayPrev" aria-label="Forrige dag">‹</button>
+    <div class="d" id="logDay"></div>
+    <button id="dayNext" aria-label="Næste dag">›</button>
+  </div>
+  <div id="logList"></div>
+  <div id="addArea"></div>
+  <button class="btn ghost" id="addBtn">+ Tilføj registrering</button>
+</div>
+
+<div class="card">
+  <h2>Backup</h2>
+  <button class="btn ghost" id="exportBtn" style="text-align:left; padding:6px 2px;">Del / kopiér loggen som CSV</button>
+  <div class="goal-note">Data ligger kun på denne telefon. Lav en backup en gang imellem.</div>
+</div>
+
+<div class="foot" id="verFoot">Bøjle-tracker · v1</div>
+
+<script>
+"use strict";
+/* ---------- lagring ---------- */
+const KEY="bojle_events";
+let memoryOnly=false, memStore=null;
+function loadEvents(){
+  try{ const raw=localStorage.getItem(KEY); return raw?JSON.parse(raw):[]; }
+  catch(e){ memoryOnly=true; return memStore?JSON.parse(memStore):[]; }
+}
+function saveEvents(){
+  events.sort((a,b)=>a.t-b.t);
+  const raw=JSON.stringify(events);
+  try{ localStorage.setItem(KEY,raw); }
+  catch(e){ memoryOnly=true; memStore=raw; }
+  if(memoryOnly) document.getElementById("storageWarn").style.display="block";
+}
+let events=loadEvents();
+events.sort((a,b)=>a.t-b.t);
+
+/* ---------- konstanter ---------- */
+const GOAL=22*3600*1000;          // 22 timer
+const BREAK_MAX=30*60*1000;       // 30 min pr. pause
+const CIRC=2*Math.PI*138;
+
+/* ---------- hjælpere ---------- */
+const $=id=>document.getElementById(id);
+function dayStart(d){ const x=new Date(d); x.setHours(0,0,0,0); return x.getTime(); }
+function fmtDur(ms){ if(ms<0)ms=0; const m=Math.round(ms/60000); return Math.floor(m/60)+"t "+String(m%60).padStart(2,"0")+"m"; }
+function fmtClockDur(ms){ if(ms<0)ms=0; const s=Math.floor(ms/1000);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+  return h>0 ? h+":"+String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0")
+             : m+":"+String(ss).padStart(2,"0"); }
+function fmtTime(t){ return new Date(t).toLocaleTimeString("da-DK",{hour:"2-digit",minute:"2-digit"}); }
+function fmtDate(t){ return new Date(t).toLocaleDateString("da-DK",{weekday:"short",day:"numeric",month:"short"}); }
+function toLocalInput(t){ const d=new Date(t);
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); }
+
+function currentState(){ return events.length? events[events.length-1] : null; }
+
+/* on/off-tid i vinduet [a,b) */
+function computeWindow(a,b){
+  let on=0, off=0, idx=-1;
+  for(let i=0;i<events.length;i++){ if(events[i].t<=a) idx=i; else break; }
+  let st=idx>=0?events[idx].s:null, cur=a;
+  for(let i=idx+1;i<events.length;i++){
+    const e=events[i]; if(e.t>=b) break;
+    const seg=Math.max(0, Math.min(e.t,b)-cur);
+    if(st==="on") on+=seg; else if(st==="off") off+=seg;
+    st=e.s; cur=Math.max(e.t,a);
+  }
+  const seg=Math.max(0,b-cur);
+  if(st==="on") on+=seg; else if(st==="off") off+=seg;
+  return {on,off};
+}
+function breaksInDay(ds){ const de=ds+86400000;
+  return events.filter(e=>e.s==="off" && e.t>=ds && e.t<de).length; }
+
+/* ---------- handlinger ---------- */
+function addEvent(s,t){ events.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), s, t}); saveEvents(); renderAll(); }
+function toggle(){ const c=currentState(); if(!c) return; addEvent(c.s==="on"?"off":"on", Date.now()); }
+
+/* ---------- live-visning (hvert sekund) ---------- */
+function updateLive(){
+  const now=Date.now(), ds=dayStart(now);
+  const today=computeWindow(ds, now);
+  const c=currentState();
+  const ring=$("ring"), lbl=$("stateLabel"), big=$("bigTime"), sub=$("subTime"), hint=$("tapHint");
+  ring.setAttribute("stroke-dasharray", CIRC);
+
+  if(!c){
+    lbl.textContent="Ingen registrering endnu"; lbl.className="state-label";
+    big.textContent="–"; sub.textContent="Vælg status herunder"; hint.textContent="";
+    ring.setAttribute("stroke-dashoffset", CIRC);
+  } else if(c.s==="on"){
+    lbl.textContent="Bøjlen er PÅ"; lbl.className="state-label on";
+    big.textContent=fmtClockDur(now-c.t);
+    sub.textContent="siden "+fmtTime(c.t);
+    hint.textContent="Tryk på cirklen, når du tager den af";
+    ring.style.stroke="var(--on)";
+    ring.setAttribute("stroke-dashoffset", CIRC*(1-Math.min(1,today.on/GOAL)));
+  } else {
+    const el=now-c.t, left=BREAK_MAX-el, over=left<0;
+    lbl.textContent=over?"Pausen er overskredet":"Bøjlen er AF";
+    lbl.className="state-label "+(over?"over":"off");
+    big.textContent=over?"+"+fmtClockDur(-left):fmtClockDur(left);
+    sub.textContent=over?"af i "+fmtDur(el):"tilbage af 30 min · af siden "+fmtTime(c.t);
+    hint.textContent="Tryk på cirklen, når du sætter den på igen";
+    ring.style.stroke=over?"var(--danger)":"var(--off)";
+    ring.setAttribute("stroke-dashoffset", CIRC*(1-Math.min(1,el/BREAK_MAX)));
+  }
+
+  $("stOn").textContent=fmtDur(today.on);
+  $("stLeft").textContent=today.on>=GOAL?"Mål nået":fmtDur(GOAL-today.on);
+  $("stOffTime").textContent=fmtDur(today.off);
+  const bc=breaksInDay(ds);
+  $("stOffCount").textContent=bc+" af 4";
+  $("stOffCard").className="stat"+(bc>4?" warn":"");
+  $("goalFill").style.width=Math.min(100, today.on/GOAL*100)+"%";
+  const dayLeft=ds+86400000-now;
+  $("goalNote").textContent= today.on>=GOAL ? "22 timer nået – flot."
+    : (GOAL-today.on>dayLeft-today.off ? "Bemærk: svært at nå 22 t i dag med resten af døgnet."
+       : fmtDur(GOAL-today.on)+" tilbage · "+fmtDur(dayLeft)+" af døgnet tilbage");
+}
+
+/* ---------- historik ---------- */
+function renderHistory(){
+  const now=Date.now(), todayDs=dayStart(now);
+  const tb=$("histBody"); tb.innerHTML="";
+  if(!events.length){ tb.innerHTML='<tr><td colspan="4" class="empty">Ingen data endnu</td></tr>'; $("avgLine").textContent=""; return; }
+  const firstDs=dayStart(events[0].t);
+  let sum=0, n=0;
+  for(let ds=todayDs; ds>=firstDs && n<60; ds-=86400000){
+    const isToday=ds===todayDs;
+    const w=computeWindow(ds, isToday?now:ds+86400000);
+    if(w.on+w.off===0 && !isToday) continue;
+    const tr=document.createElement("tr");
+    const goalCell=isToday ? '<td class="num">·</td>'
+      : '<td class="num '+(w.on>=GOAL?'ok':'miss')+'">'+(w.on>=GOAL?'✓':'✗')+'</td>';
+    tr.innerHTML='<td>'+(isToday?'I dag':fmtDate(ds))+'</td>'
+      +'<td class="num">'+fmtDur(w.on)+'</td>'
+      +'<td class="num">'+breaksInDay(ds)+'</td>'+goalCell;
+    tb.appendChild(tr);
+    if(!isToday){ sum+=w.on; n++; }
+  }
+  $("avgLine").innerHTML = n? "Gennemsnit pr. hele dag: <b>"+fmtDur(sum/n)+"</b> ("+n+" dage)"
+    : "Gennemsnittet vises fra i morgen, når der er en hel dag i loggen.";
+}
+
+/* ---------- log med redigering ---------- */
+let logDs=dayStart(Date.now());
+let editingId=null, adding=false;
+
+function renderLog(){
+  $("logDay").textContent = logDs===dayStart(Date.now()) ? "I dag" : fmtDate(logDs);
+  const de=logDs+86400000;
+  const list=$("logList"); list.innerHTML="";
+  const dayEvents=events.filter(e=>e.t>=logDs && e.t<de);
+  if(!dayEvents.length){ list.innerHTML='<div class="empty">Ingen registreringer denne dag.</div>'; }
+  dayEvents.forEach(e=>{
+    const row=document.createElement("div"); row.className="ev";
+    row.innerHTML='<span class="tag '+e.s+'">'+(e.s==="on"?"PÅ":"AF")+'</span>'
+      +'<span class="t">'+fmtTime(e.t)+'</span>'
+      +'<button class="edit">Ret</button>';
+    row.querySelector(".edit").onclick=()=>{ editingId=e.id; adding=false; renderLog(); };
+    list.appendChild(row);
+    if(editingId===e.id) list.appendChild(buildEditor(e));
+  });
+  $("addArea").innerHTML="";
+  if(adding) $("addArea").appendChild(buildEditor(null));
+}
+
+function buildEditor(e){
+  const box=document.createElement("div"); box.className="editor";
+  const isNew=!e;
+  box.innerHTML='<label>Hændelse</label>'
+    +'<select id="edS"><option value="on">Bøjle PÅ</option><option value="off">Bøjle AF</option></select>'
+    +'<label>Tidspunkt</label>'
+    +'<input type="datetime-local" id="edT">'
+    +'<div class="btn-row"><button class="btn save">Gem</button>'
+    +(isNew?'':'<button class="btn del">Slet</button>')
+    +'<button class="btn ghost">Fortryd</button></div>';
+  box.querySelector("#edS").value = e? e.s : "on";
+  box.querySelector("#edT").value = toLocalInput(e? e.t : Math.min(Date.now(), logDs+43200000));
+  box.querySelector(".save").onclick=()=>{
+    const t=new Date(box.querySelector("#edT").value).getTime();
+    if(isNaN(t)){ alert("Ugyldigt tidspunkt"); return; }
+    const s=box.querySelector("#edS").value;
+    if(isNew) events.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), s, t});
+    else { e.t=t; e.s=s; }
+    editingId=null; adding=false; saveEvents(); renderAll();
+  };
+  const del=box.querySelector(".del");
+  if(del) del.onclick=()=>{ if(confirm("Slet denne registrering?")){
+    events=events.filter(x=>x.id!==e.id); editingId=null; saveEvents(); renderAll(); } };
+  box.querySelector(".ghost").onclick=()=>{ editingId=null; adding=false; renderLog(); };
+  return box;
+}
+
+/* ---------- toggle-område ---------- */
+function renderToggle(){
+  const area=$("toggleArea"); const c=currentState();
+  if(!c){
+    area.innerHTML='<div class="btn-row" style="margin-top:14px">'
+      +'<button class="btn on" id="b1">Bøjlen er PÅ</button>'
+      +'<button class="btn off" id="b2">Bøjlen er AF</button></div>';
+    $("b1").onclick=()=>addEvent("on",Date.now());
+    $("b2").onclick=()=>addEvent("off",Date.now());
+  } else if(c.s==="on"){
+    area.innerHTML='<button class="btn off" id="b1" style="margin-top:14px">Tag bøjlen AF nu</button>';
+    $("b1").onclick=toggle;
+  } else {
+    area.innerHTML='<button class="btn on" id="b1" style="margin-top:14px">Sæt bøjlen PÅ nu</button>';
+    $("b1").onclick=toggle;
+  }
+}
+
+/* ---------- eksport ---------- */
+$("exportBtn").onclick=async ()=>{
+  let csv="dato;klokkeslaet;haendelse\n";
+  events.forEach(e=>{ const d=new Date(e.t);
+    csv+=d.toLocaleDateString("da-DK")+";"+d.toLocaleTimeString("da-DK")+";"+(e.s==="on"?"PAA":"AF")+"\n"; });
+  try{
+    if(navigator.share){ await navigator.share({title:"Bøjle-log", text:csv}); return; }
+  }catch(err){ if(err && err.name==="AbortError") return; }
+  try{ await navigator.clipboard.writeText(csv); alert("Loggen er kopieret til udklipsholderen."); }
+  catch(err){ prompt("Kopiér loggen herfra:", csv); }
+};
+
+/* ---------- navigation og opstart ---------- */
+$("dayPrev").onclick=()=>{ logDs-=86400000; editingId=null; adding=false; renderLog(); };
+$("dayNext").onclick=()=>{ if(logDs<dayStart(Date.now())){ logDs+=86400000; editingId=null; adding=false; renderLog(); } };
+$("addBtn").onclick=()=>{ adding=true; editingId=null; renderLog(); };
+$("dialTap").onclick=()=>{ if(currentState()) toggle(); };
+
+function renderAll(){ renderToggle(); renderLog(); renderHistory(); updateLive(); }
+renderAll();
+setInterval(updateLive, 1000);
+setInterval(renderHistory, 60000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden){ events=loadEvents(); events.sort((a,b)=>a.t-b.t); renderAll(); } });
+</script>
+</body>
+</html>
