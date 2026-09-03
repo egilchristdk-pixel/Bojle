@@ -56,6 +56,7 @@
   .btn.on{background:var(--on); color:#fff;}
   .btn.off{background:var(--off); color:#fff;}
   .btn.ghost{background:transparent; color:var(--muted); font-weight:500; padding:10px;}
+  .btn.outline{background:#fff; color:var(--on); border:2px solid var(--on); margin-top:12px;}
   .btn-row{display:flex; gap:10px;}
   .btn-row .btn{flex:1;}
 
@@ -93,8 +94,14 @@
   .ev .edit{border:none; background:none; color:var(--muted); font-size:14px; cursor:pointer; padding:6px;}
   .editor{background:var(--bg); border-radius:12px; padding:12px; margin:8px 0;}
   .editor label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
-  .editor input[type=datetime-local], .editor select{width:100%; font-size:16px; padding:9px;
-    border:1px solid var(--line); border-radius:10px; background:#fff; font-family:inherit; margin-bottom:10px;}
+  .editor select{width:100%; font-size:17px; padding:11px;
+    border:1px solid var(--line); border-radius:10px; background:#fff; font-family:inherit; margin-bottom:12px;}
+  .editor input[type=date], .editor input[type=time]{width:100%; font-size:19px;
+    font-variant-numeric:tabular-nums; padding:12px 10px; min-height:50px;
+    border:1px solid var(--line); border-radius:10px; background:#fff; font-family:inherit;}
+  .editor .dt-row{display:flex; gap:10px; margin-bottom:18px;}
+  .editor .dt-row>div{flex:1; min-width:0;}
+  .editor .btn-row{margin-top:2px;}
   .editor .btn-row .btn{padding:11px; font-size:15px;}
   .btn.save{background:var(--ink); color:#fff;}
   .btn.del{background:var(--danger-soft); color:var(--danger);}
@@ -150,7 +157,7 @@
     <div class="stat"><div class="v" id="alStatus">–</div><div class="l">status</div></div>
   </div>
   <div class="goal-note" id="alNote"></div>
-  <button class="btn ghost" id="alBtn" style="text-align:left; padding:8px 2px;">Jeg har skiftet bøjle nu</button>
+  <button class="btn outline" id="alBtn">Jeg har skiftet bøjle nu</button>
 </div>
 
 <div class="card">
@@ -180,7 +187,7 @@
   <div class="goal-note">Data ligger kun på denne telefon. Lav en backup en gang imellem.</div>
 </div>
 
-<div class="foot" id="verFoot">Bøjle-tracker · v3</div>
+<div class="foot" id="verFoot">Bøjle-tracker · v5</div>
 
 <script>
 "use strict";
@@ -228,7 +235,7 @@ function renderAligner(){
     if(!isToday && w.on+w.off>0){ sum+=w.on; cnt++; } // gennemsnit: kun hele dage
   }
   const avg=cnt? sum/cnt : 0;
-  const avgOk=cnt>0 && avg>=GOAL;
+  const avgOk=cnt>0 && avg>=MIN_DAY;
   const ready=good>=7 && avgOk;
   document.getElementById("alN").textContent=aligner.n;
   document.getElementById("alGood").textContent=good+" af 7";
@@ -240,7 +247,7 @@ function renderAligner(){
   stEl.style.color=ready? "var(--on)" : "var(--off)";
   const parts=[];
   if(good<7) parts.push((7-good)+(7-good===1?" god dag":" gode dage")+" (≥ 20 t) mangler");
-  if(!avgOk) parts.push(cnt? "gennemsnittet skal op på 22 t":"gennemsnittet beregnes fra første hele dag");
+  if(!avgOk) parts.push(cnt? "gennemsnittet skal op på 20 t":"gennemsnittet beregnes fra første hele dag");
   document.getElementById("alNote").innerHTML = ready
     ? '<b style="color:var(--on)">Klar til at skifte bøjle.</b> Denne bøjle er fra '+fmtDate(aligner.start)+'.'
     : 'Denne bøjle er fra '+fmtDate(aligner.start)+'. Før skift: '+parts.join(" · ")+".";
@@ -386,10 +393,10 @@ function buildEditor(e){
   const isNew=!e;
   box.innerHTML='<label>Hændelse</label>'
     +'<select id="edS"><option value="on">Bøjle PÅ</option><option value="off">Bøjle AF</option></select>'
-    +'<label>Klokkeslæt</label>'
-    +'<input type="time" id="edTime">'
-    +'<label>Dato</label>'
-    +'<input type="date" id="edDate">'
+    +'<div class="dt-row">'
+    +'<div><label>Dato</label><input type="date" id="edDate"></div>'
+    +'<div><label>Klokkeslæt</label><input type="time" id="edTime"></div>'
+    +'</div>'
     +'<div class="btn-row"><button class="btn save">Gem</button>'
     +(isNew?'':'<button class="btn del">Slet</button>')
     +'<button class="btn ghost">Fortryd</button></div>';
