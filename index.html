@@ -142,6 +142,18 @@
 </div>
 
 <div class="card">
+  <h2>Bøjleskift</h2>
+  <div class="stat-grid">
+    <div class="stat"><div class="v" id="alN">–</div><div class="l">bøjle nr.</div></div>
+    <div class="stat"><div class="v" id="alGood">–</div><div class="l">dage med ≥ 20 t</div></div>
+    <div class="stat"><div class="v" id="alAvg">–</div><div class="l">gennemsnit siden skift</div></div>
+    <div class="stat"><div class="v" id="alStatus">–</div><div class="l">status</div></div>
+  </div>
+  <div class="goal-note" id="alNote"></div>
+  <button class="btn ghost" id="alBtn" style="text-align:left; padding:8px 2px;">Jeg har skiftet bøjle nu</button>
+</div>
+
+<div class="card">
   <h2>Historik</h2>
   <table>
     <thead><tr><th>Dag</th><th class="num">På</th><th class="num">Pauser</th><th class="num">22 t</th></tr></thead>
@@ -168,7 +180,7 @@
   <div class="goal-note">Data ligger kun på denne telefon. Lav en backup en gang imellem.</div>
 </div>
 
-<div class="foot" id="verFoot">Bøjle-tracker · v1</div>
+<div class="foot" id="verFoot">Bøjle-tracker · v3</div>
 
 <script>
 "use strict";
@@ -191,8 +203,48 @@ events.sort((a,b)=>a.t-b.t);
 
 /* ---------- konstanter ---------- */
 const GOAL=22*3600*1000;          // 22 timer
+const MIN_DAY=20*3600*1000;       // en "god dag" for bøjleskift
 const BREAK_MAX=30*60*1000;       // 30 min pr. pause
 const CIRC=2*Math.PI*138;
+
+/* ---------- bøjleskift ---------- */
+const KEY2="bojle_aligner";
+let aligner=null;
+try{ const r=localStorage.getItem(KEY2); if(r) aligner=JSON.parse(r); }catch(e){}
+function saveAligner(){ try{ localStorage.setItem(KEY2, JSON.stringify(aligner)); }catch(e){} }
+function ensureAligner(){
+  if(!aligner){ aligner={n:1, start:(events.length? events[0].t : Date.now())}; saveAligner(); }
+}
+function renderAligner(){
+  ensureAligner();
+  const now=Date.now(), todayDs=dayStart(now);
+  const firstDs=events.length? dayStart(events[0].t) : todayDs;
+  let good=0, sum=0, cnt=0;
+  for(let ds=dayStart(aligner.start); ds<=todayDs; ds+=86400000){
+    if(ds===firstDs) continue;                       // opstartsdagen tæller ikke
+    const isToday=ds===todayDs;
+    const w=computeWindow(ds, isToday? now : ds+86400000);
+    if(w.on>=MIN_DAY) good++;                        // i dag tæller med, hvis 20 t allerede er nået
+    if(!isToday && w.on+w.off>0){ sum+=w.on; cnt++; } // gennemsnit: kun hele dage
+  }
+  const avg=cnt? sum/cnt : 0;
+  const avgOk=cnt>0 && avg>=GOAL;
+  const ready=good>=7 && avgOk;
+  document.getElementById("alN").textContent=aligner.n;
+  document.getElementById("alGood").textContent=good+" af 7";
+  const avgEl=document.getElementById("alAvg");
+  avgEl.textContent=cnt? fmtDur(avg) : "–";
+  avgEl.style.color=cnt? (avgOk? "var(--on)":"var(--danger)") : "";
+  const stEl=document.getElementById("alStatus");
+  stEl.textContent=ready? "Klar" : "Vent";
+  stEl.style.color=ready? "var(--on)" : "var(--off)";
+  const parts=[];
+  if(good<7) parts.push((7-good)+(7-good===1?" god dag":" gode dage")+" (≥ 20 t) mangler");
+  if(!avgOk) parts.push(cnt? "gennemsnittet skal op på 22 t":"gennemsnittet beregnes fra første hele dag");
+  document.getElementById("alNote").innerHTML = ready
+    ? '<b style="color:var(--on)">Klar til at skifte bøjle.</b> Denne bøjle er fra '+fmtDate(aligner.start)+'.'
+    : 'Denne bøjle er fra '+fmtDate(aligner.start)+'. Før skift: '+parts.join(" · ")+".";
+}
 
 /* ---------- hjælpere ---------- */
 const $=id=>document.getElementById(id);
@@ -270,9 +322,14 @@ function updateLive(){
   $("stOffCard").className="stat"+(bc>4?" warn":"");
   $("goalFill").style.width=Math.min(100, today.on/GOAL*100)+"%";
   const dayLeft=ds+86400000-now;
-  $("goalNote").textContent= today.on>=GOAL ? "22 timer nået – flot."
-    : (GOAL-today.on>dayLeft-today.off ? "Bemærk: svært at nå 22 t i dag med resten af døgnet."
-       : fmtDur(GOAL-today.on)+" tilbage · "+fmtDur(dayLeft)+" af døgnet tilbage");
+  const missing=Math.max(0, GOAL-today.on);
+  const diff=dayLeft-missing;
+  const sign=diff<0?"−":"+";
+  const col=diff<0?"var(--danger)":"var(--on)";
+  $("goalNote").innerHTML=
+    fmtDur(dayLeft)+" tilbage af døgnet · "
+    +(missing>0? "mangler "+fmtDur(missing) : "mål nået")
+    +' · difference: <b style="color:'+col+'">'+sign+fmtDur(Math.abs(diff))+"</b>";
 }
 
 /* ---------- historik ---------- */
@@ -284,16 +341,18 @@ function renderHistory(){
   let sum=0, n=0;
   for(let ds=todayDs; ds>=firstDs && n<60; ds-=86400000){
     const isToday=ds===todayDs;
+    const isFirst=ds===firstDs;              // opstartsdag – tæller ikke med
     const w=computeWindow(ds, isToday?now:ds+86400000);
     if(w.on+w.off===0 && !isToday) continue;
     const tr=document.createElement("tr");
     const goalCell=isToday ? '<td class="num">·</td>'
+      : isFirst ? '<td class="num" style="color:var(--muted)">–</td>'
       : '<td class="num '+(w.on>=GOAL?'ok':'miss')+'">'+(w.on>=GOAL?'✓':'✗')+'</td>';
     tr.innerHTML='<td>'+(isToday?'I dag':fmtDate(ds))+'</td>'
       +'<td class="num">'+fmtDur(w.on)+'</td>'
       +'<td class="num">'+breaksInDay(ds)+'</td>'+goalCell;
     tb.appendChild(tr);
-    if(!isToday){ sum+=w.on; n++; }
+    if(!isToday && !isFirst){ sum+=w.on; n++; }
   }
   $("avgLine").innerHTML = n? "Gennemsnit pr. hele dag: <b>"+fmtDur(sum/n)+"</b> ("+n+" dage)"
     : "Gennemsnittet vises fra i morgen, når der er en hel dag i loggen.";
@@ -327,15 +386,20 @@ function buildEditor(e){
   const isNew=!e;
   box.innerHTML='<label>Hændelse</label>'
     +'<select id="edS"><option value="on">Bøjle PÅ</option><option value="off">Bøjle AF</option></select>'
-    +'<label>Tidspunkt</label>'
-    +'<input type="datetime-local" id="edT">'
+    +'<label>Klokkeslæt</label>'
+    +'<input type="time" id="edTime">'
+    +'<label>Dato</label>'
+    +'<input type="date" id="edDate">'
     +'<div class="btn-row"><button class="btn save">Gem</button>'
     +(isNew?'':'<button class="btn del">Slet</button>')
     +'<button class="btn ghost">Fortryd</button></div>';
   box.querySelector("#edS").value = e? e.s : "on";
-  box.querySelector("#edT").value = toLocalInput(e? e.t : Math.min(Date.now(), logDs+43200000));
+  const t0 = e? e.t : Math.min(Date.now(), logDs+43200000);
+  const li = toLocalInput(t0);                 // "YYYY-MM-DDTHH:MM"
+  box.querySelector("#edDate").value = li.slice(0,10);
+  box.querySelector("#edTime").value = li.slice(11,16);
   box.querySelector(".save").onclick=()=>{
-    const t=new Date(box.querySelector("#edT").value).getTime();
+    const t=new Date(box.querySelector("#edDate").value+"T"+box.querySelector("#edTime").value).getTime();
     if(isNaN(t)){ alert("Ugyldigt tidspunkt"); return; }
     const s=box.querySelector("#edS").value;
     if(isNew) events.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), s, t});
@@ -385,10 +449,15 @@ $("dayNext").onclick=()=>{ if(logDs<dayStart(Date.now())){ logDs+=86400000; edit
 $("addBtn").onclick=()=>{ adding=true; editingId=null; renderLog(); };
 $("dialTap").onclick=()=>{ if(currentState()) toggle(); };
 
-function renderAll(){ renderToggle(); renderLog(); renderHistory(); updateLive(); }
+$("alBtn").onclick=()=>{ ensureAligner();
+  if(confirm("Registrér at du skifter til bøjle nr. "+(aligner.n+1)+" nu?")){
+    aligner={n:aligner.n+1, start:Date.now()}; saveAligner(); renderAligner();
+  } };
+
+function renderAll(){ renderToggle(); renderLog(); renderHistory(); renderAligner(); updateLive(); }
 renderAll();
 setInterval(updateLive, 1000);
-setInterval(renderHistory, 60000);
+setInterval(()=>{ renderHistory(); renderAligner(); }, 60000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden){ events=loadEvents(); events.sort((a,b)=>a.t-b.t); renderAll(); } });
 </script>
 </body>
