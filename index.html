@@ -188,10 +188,12 @@
 <div class="card">
   <h2>Backup</h2>
   <button class="btn ghost" id="exportBtn" style="text-align:left; padding:6px 2px;">Del / kopiér loggen som CSV</button>
+  <button class="btn ghost" id="importBtn" style="text-align:left; padding:6px 2px;">Importér fra CSV-backup</button>
+  <div id="importArea"></div>
   <div class="goal-note">Data ligger kun på denne telefon. Lav en backup en gang imellem.</div>
 </div>
 
-<div class="foot" id="verFoot">Bøjle-tracker · v6</div>
+<div class="foot" id="verFoot">Bøjle-tracker · v7</div>
 
 <script>
 "use strict";
@@ -444,15 +446,70 @@ function renderToggle(){
 }
 
 /* ---------- eksport ---------- */
-$("exportBtn").onclick=async ()=>{
-  let csv="dato;klokkeslaet;haendelse\n";
+function buildCsv(){
+  ensureAligner();
+  let csv="bojle;"+aligner.n+";"+new Date(aligner.start).toISOString()+"\n";
+  csv+="dato;klokkeslaet;haendelse\n";
   events.forEach(e=>{ const d=new Date(e.t);
     csv+=d.toLocaleDateString("da-DK")+";"+d.toLocaleTimeString("da-DK")+";"+(e.s==="on"?"PAA":"AF")+"\n"; });
+  return csv;
+}
+$("exportBtn").onclick=async ()=>{
+  const csv=buildCsv();
   try{
     if(navigator.share){ await navigator.share({title:"Bøjle-log", text:csv}); return; }
   }catch(err){ if(err && err.name==="AbortError") return; }
   try{ await navigator.clipboard.writeText(csv); alert("Loggen er kopieret til udklipsholderen."); }
   catch(err){ prompt("Kopiér loggen herfra:", csv); }
+};
+
+/* ---------- import ---------- */
+function parseCsvDate(ds, ts){
+  const dm=ds.trim().match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);
+  if(!dm) return NaN;
+  let y=+dm[3]; if(y<100) y+=2000;
+  const tm=ts.trim().match(/^(\d{1,2})[.:](\d{1,2})(?:[.:](\d{1,2}))?$/);
+  if(!tm) return NaN;
+  return new Date(y, +dm[2]-1, +dm[1], +tm[1], +tm[2], tm[3]? +tm[3]:0).getTime();
+}
+$("importBtn").onclick=()=>{
+  const area=$("importArea");
+  if(area.firstChild){ area.innerHTML=""; return; }
+  const box=document.createElement("div"); box.className="editor";
+  box.innerHTML='<label>Sæt CSV-backuppen ind her</label>'
+    +'<textarea id="impText" rows="6" style="width:100%; font-size:14px; font-family:inherit;'
+    +' border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:12px;"></textarea>'
+    +'<div class="btn-row"><button class="btn save">Importér</button>'
+    +'<button class="btn ghost">Fortryd</button></div>';
+  box.querySelector(".ghost").onclick=()=>{ area.innerHTML=""; };
+  box.querySelector(".save").onclick=()=>{
+    const text=box.querySelector("#impText").value;
+    let added=0, skipped=0;
+    const have=new Set(events.map(e=>e.t+"_"+e.s));
+    text.split(/\r?\n/).forEach(line=>{
+      const parts=line.split(";");
+      if(parts[0] && parts[0].trim().toLowerCase()==="bojle" && parts.length>=3){
+        const st=Date.parse(parts[2]); const n=parseInt(parts[1],10);
+        if(!isNaN(st) && n>0){ aligner={n:n, start:st}; saveAligner(); }
+        return;
+      }
+      if(parts.length<3) return;
+      const t=parseCsvDate(parts[0], parts[1]);
+      if(isNaN(t)) return;
+      const w=parts[2].trim().toUpperCase();
+      const s= (w==="PAA"||w==="PÅ"||w==="ON") ? "on" : (w==="AF"||w==="OFF") ? "off" : null;
+      if(!s) return;
+      const key=t+"_"+s;
+      if(have.has(key)){ skipped++; return; }
+      have.add(key);
+      events.push({id:Date.now()+"_"+Math.random().toString(36).slice(2,7), s, t});
+      added++;
+    });
+    if(added===0 && skipped===0){ alert("Kunne ikke genkende nogen linjer – tjek at hele backuppen er sat ind."); return; }
+    saveEvents(); area.innerHTML=""; renderAll();
+    alert("Importeret: "+added+" registreringer."+(skipped? " Sprunget over (fandtes i forvejen): "+skipped+".":""));
+  };
+  area.appendChild(box);
 };
 
 /* ---------- navigation og opstart ---------- */
