@@ -75,6 +75,8 @@
   td,th{padding:7px 4px; text-align:left; font-size:14px; border-top:1px solid var(--line);}
   th{border-top:none; font-size:12px; color:var(--muted); font-weight:600;}
   td.num,th.num{text-align:right;}
+  .hist-scroll{max-height:310px; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .hist-scroll thead th{position:sticky; top:0; background:var(--card); z-index:1;}
   .ok{color:var(--on); font-weight:600;} .miss{color:var(--danger); font-weight:600;}
   .avg-line{font-size:14px; margin-top:10px; color:var(--muted);}
   .avg-line b{color:var(--ink); font-variant-numeric:tabular-nums;}
@@ -162,10 +164,12 @@
 
 <div class="card">
   <h2>Historik</h2>
+  <div class="hist-scroll">
   <table>
     <thead><tr><th>Dag</th><th class="num">På</th><th class="num">Pauser</th><th class="num">22 t</th></tr></thead>
     <tbody id="histBody"></tbody>
   </table>
+  </div>
   <div class="avg-line" id="avgLine"></div>
 </div>
 
@@ -187,7 +191,7 @@
   <div class="goal-note">Data ligger kun på denne telefon. Lav en backup en gang imellem.</div>
 </div>
 
-<div class="foot" id="verFoot">Bøjle-tracker · v5</div>
+<div class="foot" id="verFoot">Bøjle-tracker · v6</div>
 
 <script>
 "use strict";
@@ -345,8 +349,8 @@ function renderHistory(){
   const tb=$("histBody"); tb.innerHTML="";
   if(!events.length){ tb.innerHTML='<tr><td colspan="4" class="empty">Ingen data endnu</td></tr>'; $("avgLine").textContent=""; return; }
   const firstDs=dayStart(events[0].t);
-  let sum=0, n=0;
-  for(let ds=todayDs; ds>=firstDs && n<60; ds-=86400000){
+  let sum=0, n=0, rows=0;
+  for(let ds=todayDs; ds>=firstDs && rows<366; ds-=86400000){
     const isToday=ds===todayDs;
     const isFirst=ds===firstDs;              // opstartsdag – tæller ikke med
     const w=computeWindow(ds, isToday?now:ds+86400000);
@@ -359,6 +363,7 @@ function renderHistory(){
       +'<td class="num">'+fmtDur(w.on)+'</td>'
       +'<td class="num">'+breaksInDay(ds)+'</td>'+goalCell;
     tb.appendChild(tr);
+    rows++;
     if(!isToday && !isFirst){ sum+=w.on; n++; }
   }
   $("avgLine").innerHTML = n? "Gennemsnit pr. hele dag: <b>"+fmtDur(sum/n)+"</b> ("+n+" dage)"
@@ -455,7 +460,6 @@ $("dayPrev").onclick=()=>{ logDs-=86400000; editingId=null; adding=false; render
 $("dayNext").onclick=()=>{ if(logDs<dayStart(Date.now())){ logDs+=86400000; editingId=null; adding=false; renderLog(); } };
 $("addBtn").onclick=()=>{ adding=true; editingId=null; renderLog(); };
 $("dialTap").onclick=()=>{ if(currentState()) toggle(); };
-
 $("alBtn").onclick=()=>{ ensureAligner();
   if(confirm("Registrér at du skifter til bøjle nr. "+(aligner.n+1)+" nu?")){
     aligner={n:aligner.n+1, start:Date.now()}; saveAligner(); renderAligner();
